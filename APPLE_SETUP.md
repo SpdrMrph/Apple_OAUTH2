@@ -6,6 +6,12 @@
 
 bundleId - com.testmycompany.myapp
 
+Apple_TEAM_ID = 
+2UBQYG3N88
+APPLE_CLIENT_ID = com.mytestcompany.myapp.service
+Key ID
+N6WHAVD4ML
+
 ## 📋 Что нужно получить
 
 Для работы Apple OAuth2 вам потребуются:

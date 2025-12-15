@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 
-const BACKEND_URL = 'http://localhost:8000';
+const BACKEND_URL = 'https://web-production-dbb4d.up.railway.app';
 
 export default function Home() {
   const [loading, setLoading] = useState(false);

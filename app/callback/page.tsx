@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 
-const BACKEND_URL = 'http://localhost:8000';
+const BACKEND_URL = 'https://web-production-dbb4d.up.railway.app';
 
 interface UserData {
   user_id: string;

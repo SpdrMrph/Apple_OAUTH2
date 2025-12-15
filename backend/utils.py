@@ -39,9 +39,11 @@ def generate_client_secret() -> str:
     }
     
     # Загружаем приватный ключ из конфига
+    # Конвертируем \n в реальные переносы строк (для переменных окружения)
     try:
+        private_key_str = config.APPLE_PRIVATE_KEY.replace('\\n', '\n')
         private_key = serialization.load_pem_private_key(
-            config.APPLE_PRIVATE_KEY.encode(),
+            private_key_str.encode(),
             password=None,
             backend=default_backend()
         )
