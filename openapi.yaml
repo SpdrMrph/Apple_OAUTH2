@@ -1,0 +1,383 @@
+openapi: 3.0.3
+info:
+  title: Apple OAuth2 Backend API
+  description: |
+    ## 🍎 Sign in with Apple - Backend API
+    
+    Референсная реализация авторизации через Apple OAuth2.
+    
+    ### Основной flow авторизации:
+    
+    1. `GET /auth/apple/login` - Получить URL для редиректа на Apple
+    2. Пользователь авторизуется на странице Apple
+    3. `POST /auth/apple/callback` - Apple редиректит сюда с кодом
+    4. `GET /auth/user` - Получить данные пользователя по session_id
+    5. `POST /auth/logout` - Выйти из системы
+    
+    ### Важно:
+    
+    - Email и имя пользователя передаются Apple **только при первой авторизации**
+    - При повторных входах доступен только `user_id` (sub claim)
+    - Используйте HTTPS в production
+    
+  version: 1.0.0
+  contact:
+    name: Apple Developer Documentation
+    url: https://developer.apple.com/documentation/sign_in_with_apple
+
+servers:
+  - url: https://web-production-dbb4d.up.railway.app
+    description: Production (Railway)
+  - url: http://localhost:8000
+    description: Local Development
+
+tags:
+  - name: auth
+    description: Endpoints для авторизации через Apple OAuth2
+  - name: debug
+    description: Тестовые endpoints для отладки конфигурации
+
+paths:
+  /:
+    get:
+      summary: Информация об API
+      description: Возвращает список доступных endpoints и версию API
+      operationId: getRoot
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiInfo'
+              example:
+                message: "Apple OAuth2 Backend API"
+                version: "1.0.0"
+                endpoints:
+                  login: "/auth/apple/login"
+                  callback: "/auth/apple/callback"
+                  user: "/auth/user"
+                  logout: "/auth/logout"
+
+  /auth/apple/login:
+    get:
+      tags:
+        - auth
+      summary: Инициировать авторизацию
+      description: |
+        ## Шаг 1: Инициация OAuth flow
+        
+        Генерирует URL для редиректа пользователя на страницу авторизации Apple.
+        
+        ### Как использовать:
+        1. Вызовите этот endpoint
+        2. Получите `auth_url` из ответа
+        3. Редиректните пользователя на `auth_url`
+        4. После авторизации Apple вернёт пользователя на `/auth/apple/callback`
+        
+        ### Параметры запроса к Apple:
+        - `client_id` - ваш Services ID
+        - `redirect_uri` - callback URL
+        - `response_type` - всегда "code"
+        - `response_mode` - "form_post"
+        - `state` - CSRF токен
+        - `scope` - "name email"
+      operationId: appleLogin
+      responses:
+        '200':
+          description: URL для редиректа на Apple
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUrlResponse'
+              example:
+                auth_url: "https://appleid.apple.com/auth/authorize?client_id=com.example.app&redirect_uri=https://example.com/callback&response_type=code&response_mode=form_post&state=abc123&scope=name+email"
+                message: "Перейдите по auth_url для авторизации"
+
+  /auth/apple/callback:
+    post:
+      tags:
+        - auth
+      summary: Callback от Apple
+      description: |
+        ## Шаг 2: Обработка callback от Apple
+        
+        Apple редиректит сюда после успешной авторизации пользователя.
+        
+        ### Параметры от Apple (form data):
+        - `code` - Authorization code для обмена на токены
+        - `state` - CSRF токен (должен совпадать с отправленным)
+        - `user` - JSON с данными пользователя (только при первой авторизации!)
+        - `error` - Ошибка, если авторизация не удалась
+        
+        ### Процесс обработки:
+        1. Проверка state (защита от CSRF)
+        2. Обмен code на токены через Apple Token API
+        3. Декодирование id_token
+        4. Создание сессии
+        5. Редирект на frontend с session_id
+        
+        ### Важно:
+        - Имя и email доступны **только при первой авторизации**
+      operationId: appleCallback
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                code:
+                  type: string
+                  description: Authorization code от Apple
+                state:
+                  type: string
+                  description: CSRF токен
+                user:
+                  type: string
+                  description: JSON с данными пользователя (только первый раз)
+                error:
+                  type: string
+                  description: Ошибка от Apple (если есть)
+              required:
+                - code
+                - state
+      responses:
+        '302':
+          description: Редирект на frontend
+          headers:
+            Location:
+              description: URL фронтенда с session_id или error
+              schema:
+                type: string
+                example: "http://localhost:3000/callback?session_id=abc123"
+        '400':
+          description: Неверный state или отсутствует code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/user:
+    get:
+      tags:
+        - auth
+      summary: Получить данные пользователя
+      description: |
+        ## Шаг 3: Получение данных пользователя
+        
+        Возвращает информацию о пользователе по session_id.
+        
+        ### Возвращаемые поля:
+        - `user_id` - Уникальный ID от Apple (claim "sub")
+        - `email` - Email (может быть приватным relay)
+        - `email_verified` - Подтверждён ли email
+        - `is_private_email` - Использует ли приватный email Apple
+      operationId: getUser
+      parameters:
+        - name: session_id
+          in: query
+          required: true
+          description: ID сессии пользователя
+          schema:
+            type: string
+          example: "uX9ommxzitzwGomr4uWUVr8Gg971rgvmU9DvDF9nVeA"
+      responses:
+        '200':
+          description: Данные пользователя
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+              example:
+                user_id: "001234.abcdef1234567890abcdef.1234"
+                email: "user@privaterelay.appleid.com"
+                email_verified: true
+                is_private_email: true
+        '401':
+          description: Неверная или истекшая сессия
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                detail: "Неверная или истекшая сессия"
+
+  /auth/logout:
+    post:
+      tags:
+        - auth
+      summary: Выход из системы
+      description: |
+        ## Выход из системы
+        
+        Удаляет сессию пользователя на сервере.
+      operationId: logout
+      parameters:
+        - name: session_id
+          in: query
+          required: true
+          description: ID сессии пользователя
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Успешный выход
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutResponse'
+              example:
+                message: "Успешный выход из системы"
+
+  /auth/test-config:
+    get:
+      tags:
+        - debug
+      summary: Проверить конфигурацию
+      description: |
+        Возвращает текущие значения конфигурации (без приватного ключа).
+        
+        Используйте для проверки что все переменные окружения установлены правильно.
+      operationId: testConfig
+      responses:
+        '200':
+          description: Текущая конфигурация
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigResponse'
+              example:
+                team_id: "AB12CD34EF"
+                client_id: "com.example.app.service"
+                key_id: "XY98ZW76VU"
+                redirect_uri: "https://example.com/auth/apple/callback"
+                private_key_loaded: "YES"
+                private_key_starts_with: "-----BEGIN PRIVATE KEY-----..."
+
+  /auth/test-jwt:
+    get:
+      tags:
+        - debug
+      summary: Проверить генерацию JWT
+      description: |
+        Генерирует тестовый JWT client_secret.
+        
+        Используйте для проверки что приватный ключ загружен правильно.
+      operationId: testJwt
+      responses:
+        '200':
+          description: JWT успешно сгенерирован
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JwtTestResponse'
+              example:
+                status: "success"
+                client_secret: "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IlhZOThaTzc2VlUifQ..."
+                message: "JWT успешно сгенерирован"
+        '500':
+          description: Ошибка генерации JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    ApiInfo:
+      type: object
+      properties:
+        message:
+          type: string
+        version:
+          type: string
+        endpoints:
+          type: object
+          additionalProperties:
+            type: string
+
+    AuthUrlResponse:
+      type: object
+      required:
+        - auth_url
+        - message
+      properties:
+        auth_url:
+          type: string
+          description: URL для редиректа на страницу авторизации Apple
+        message:
+          type: string
+          description: Инструкция для пользователя
+
+    UserResponse:
+      type: object
+      required:
+        - user_id
+      properties:
+        user_id:
+          type: string
+          description: Уникальный ID пользователя от Apple (sub claim)
+        email:
+          type: string
+          nullable: true
+          description: Email пользователя (может быть приватным relay)
+        email_verified:
+          type: boolean
+          nullable: true
+          description: Подтверждён ли email
+        is_private_email:
+          type: boolean
+          nullable: true
+          description: Использует ли пользователь приватный email Apple
+
+    LogoutResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: Статус операции
+
+    ConfigResponse:
+      type: object
+      properties:
+        team_id:
+          type: string
+          description: Apple Team ID
+        client_id:
+          type: string
+          description: Apple Services ID (Client ID)
+        key_id:
+          type: string
+          description: Apple Key ID
+        redirect_uri:
+          type: string
+          description: Callback URL
+        private_key_loaded:
+          type: string
+          description: Загружен ли приватный ключ
+        private_key_starts_with:
+          type: string
+          description: Начало приватного ключа (для проверки)
+
+    JwtTestResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        client_secret:
+          type: string
+          description: Сгенерированный JWT токен
+        message:
+          type: string
+
+    Error:
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
+          description: Описание ошибки
+
