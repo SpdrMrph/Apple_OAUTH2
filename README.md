@@ -1,36 +1,254 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🍎 Apple OAuth2 - Референсная реализация
 
-## Getting Started
+Полная рабочая реализация авторизации через **Sign in with Apple** с Python FastAPI backend и Next.js frontend.
 
-First, run the development server:
+## 🎯 Назначение
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+Это референсный проект для интеграции Apple OAuth2 в ваше приложение. Код специально написан максимально просто и понятно, чтобы его можно было легко адаптировать под любой стек технологий.
+
+## 🏗️ Архитектура
+
+- **Backend**: Python FastAPI (порт 8000)
+  - Полный OAuth2 flow
+  - Генерация JWT client_secret
+  - Обработка callback от Apple
+  - Валидация токенов
+  
+- **Frontend**: Next.js + TypeScript (порт 3000)
+  - Кнопка "Sign in with Apple"
+  - Страница callback для обработки результата
+  - Отображение данных пользователя
+
+## 📦 Что внутри
+
+```
+apple-id/
+├── backend/                    # Python FastAPI backend
+│   ├── main.py                # Основной сервер с endpoints
+│   ├── config.py              # Конфигурация (заполните ключи!)
+│   ├── utils.py               # Генерация JWT, валидация токенов
+│   ├── requirements.txt       # Python зависимости
+│   └── .env.example          # Пример конфигурации
+│
+├── app/                       # Next.js frontend
+│   ├── page.tsx              # Главная страница с кнопкой авторизации
+│   └── callback/
+│       └── page.tsx          # Обработка результата авторизации
+│
+├── APPLE_SETUP.md            # 📖 Подробная инструкция по настройке
+├── package.json              # Node.js зависимости и скрипты
+└── README.md                 # Этот файл
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## ⚠️ Важно: Apple не поддерживает localhost
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Apple Developer Console **не принимает** `localhost` или IP адреса для веб-авторизации.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+**Решение:** Используйте **ngrok** для создания публичного туннеля к вашему локальному серверу.
 
-## Learn More
+📖 **Подробная инструкция:** [`NGROK_SETUP.md`](NGROK_SETUP.md)  
+⚡ **Быстрый старт:** [`START.md`](START.md)
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 🚀 Быстрый старт
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+✅ **Все зависимости уже установлены!**
+- ✅ Node.js зависимости
+- ✅ Python venv создан
+- ✅ Python зависимости установлены
+- ✅ ngrok установлен
 
-## Deploy on Vercel
+### 1️⃣ Получите ключи от Apple
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+**Следуйте подробной инструкции в файле [`APPLE_SETUP.md`](APPLE_SETUP.md)**
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Вам понадобятся:
+- Team ID
+- Client ID (Services ID)
+- Key ID
+- Private Key (.p8 файл)
+
+### 2️⃣ Заполните конфигурацию
+
+Откройте `backend/config.py` и заполните все константы вашими значениями.
+
+### 3️⃣ Запустите проект через ngrok
+
+**См. подробную инструкцию:** [`NGROK_SETUP.md`](NGROK_SETUP.md)
+
+**Кратко:**
+
+**Терминал 1 - Backend:**
+```bash
+venv\Scripts\activate
+cd backend
+python main.py
+```
+
+**Терминал 2 - ngrok:**
+```bash
+ngrok http 8000
+```
+Скопируйте ngrok URL (например: `https://abc123.ngrok-free.app`)
+
+**Терминал 3 - Frontend:**
+```bash
+npm run dev
+```
+
+### 4️⃣ Настройте Apple Developer Console и config.py
+
+**Важно:** После получения ngrok URL обновите:
+
+1. **Apple Developer Console** → Services ID → Configure:
+   - Domains: `abc123.ngrok-free.app`
+   - Return URLs: `https://abc123.ngrok-free.app/auth/apple/callback`
+
+2. **backend/config.py:**
+   ```python
+   APPLE_REDIRECT_URI: str = "https://abc123.ngrok-free.app/auth/apple/callback"
+   BACKEND_URL: str = "https://abc123.ngrok-free.app"
+   ```
+
+3. **app/page.tsx:**
+   ```typescript
+   const BACKEND_URL = 'https://abc123.ngrok-free.app';
+   ```
+
+4. Перезапустите backend
+
+### 5️⃣ Откройте браузер
+
+- Frontend: http://localhost:3000
+- Backend через ngrok: https://abc123.ngrok-free.app
+- ngrok Web UI: http://127.0.0.1:4040
+
+## 📖 Документация
+
+### Endpoints Backend
+
+| Endpoint | Метод | Описание |
+|----------|-------|----------|
+| `/` | GET | Информация об API |
+| `/auth/apple/login` | GET | Инициация OAuth flow |
+| `/auth/apple/callback` | POST/GET | Обработка callback от Apple |
+| `/auth/user` | GET | Получение данных пользователя |
+| `/auth/logout` | POST | Выход (удаление сессии) |
+| `/auth/test-config` | GET | Тест конфигурации |
+| `/auth/test-jwt` | GET | Тест генерации JWT |
+
+### OAuth Flow
+
+1. Пользователь нажимает "Sign in with Apple" на фронтенде
+2. Frontend запрашивает URL авторизации у backend (`/auth/apple/login`)
+3. Пользователь перенаправляется на Apple
+4. После авторизации Apple редиректит на backend (`/auth/apple/callback`)
+5. Backend обменивает код на токены, создает сессию
+6. Пользователь перенаправляется на frontend (`/callback?session_id=...`)
+7. Frontend запрашивает данные пользователя (`/auth/user`)
+
+## 🔒 Безопасность
+
+⚠️ **Важно:** Этот пример для разработки. Для production:
+
+- ✅ Используйте HTTPS
+- ✅ Храните ключи в переменных окружения (`.env`)
+- ✅ Включите полную валидацию ID токенов с проверкой подписи
+- ✅ Используйте Redis/БД для хранения сессий
+- ✅ Настройте CORS правильно
+- ✅ Добавьте rate limiting
+- ✅ Логируйте все операции
+
+## 🧪 Тестирование
+
+### Проверка конфигурации
+```bash
+curl http://localhost:8000/auth/test-config
+```
+
+### Проверка генерации JWT
+```bash
+curl http://localhost:8000/auth/test-jwt
+```
+
+### Полный flow
+1. Откройте http://localhost:3000
+2. Нажмите "Sign in with Apple"
+3. Войдите с Apple ID
+4. Проверьте данные на странице callback
+
+## 🐛 Решение проблем
+
+### Backend не запускается
+```bash
+# Проверьте что установлены все зависимости
+pip install -r backend/requirements.txt
+
+# Проверьте синтаксис config.py
+python -c "from backend.config import config; print(config.APPLE_TEAM_ID)"
+```
+
+### Ошибка "Invalid client"
+- Проверьте что `APPLE_CLIENT_ID` совпадает с Services ID в Apple Developer Console
+
+### Ошибка "Invalid redirect_uri"
+- `APPLE_REDIRECT_URI` должен **точно совпадать** с Return URL в Apple Developer Console
+
+### Email не приходит
+- Apple передает email только при **первой** авторизации
+- Удалите приложение из списка авторизованных в настройках Apple ID для повторного теста
+
+**Подробнее см. [`APPLE_SETUP.md`](APPLE_SETUP.md) → "Решение проблем"**
+
+## 📚 Полезные ссылки
+
+- [Подробная инструкция по настройке](APPLE_SETUP.md)
+- [Официальная документация Apple](https://developer.apple.com/documentation/sign_in_with_apple)
+- [REST API документация](https://developer.apple.com/documentation/sign_in_with_apple/sign_in_with_apple_rest_api)
+- [FastAPI документация](https://fastapi.tiangolo.com/)
+- [Next.js документация](https://nextjs.org/docs)
+
+## 🎨 Технологии
+
+- **Backend:**
+  - Python 3.8+
+  - FastAPI - веб-фреймворк
+  - PyJWT - генерация JWT
+  - httpx - HTTP клиент
+  - uvicorn - ASGI сервер
+
+- **Frontend:**
+  - Next.js 16
+  - React 19
+  - TypeScript
+  - Tailwind CSS
+
+## 📝 Лицензия
+
+Этот проект создан для образовательных целей. Используйте свободно.
+
+## 🤝 Адаптация под другие технологии
+
+Этот референсный проект легко адаптировать под:
+
+- **Backend:** Django, Flask, Express.js, Go, PHP
+- **Frontend:** React SPA, Vue, Angular, Mobile (iOS/Android)
+- **База данных:** PostgreSQL, MongoDB, Redis
+
+Основная логика в `backend/utils.py` (генерация JWT) и `backend/main.py` (OAuth flow) может быть портирована на любой язык.
+
+## 💡 Что дальше?
+
+1. Заполните ключи в `backend/config.py` (см. [`APPLE_SETUP.md`](APPLE_SETUP.md))
+2. Запустите проект (`npm run dev:all`)
+3. Протестируйте авторизацию
+4. Адаптируйте код под свой проект
+5. Добавьте хранение пользователей в БД
+6. Настройте production окружение
+
+---
+
+**Вопросы?** Читайте подробную инструкцию в [`APPLE_SETUP.md`](APPLE_SETUP.md) 📖
+
+**Успехов! 🚀**

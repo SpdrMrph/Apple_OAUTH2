@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: apple-oauth-backend
+    env: python
+    region: oregon
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: APPLE_TEAM_ID
+        sync: false
+      - key: APPLE_CLIENT_ID
+        sync: false
+      - key: APPLE_KEY_ID
+        sync: false
+      - key: APPLE_PRIVATE_KEY
+        sync: false
+      - key: APPLE_REDIRECT_URI
+        sync: false
+

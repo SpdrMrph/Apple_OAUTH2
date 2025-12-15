@@ -39,3 +39,28 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
+build/
+dist/
+*.egg-info/
+
+# Секретные ключи и конфиденциальная информация
+*.p8
+*.pem
+*.key
+backend/.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
